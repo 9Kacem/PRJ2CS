@@ -16,9 +16,6 @@ import json
 import tempfile
 import shutil
 from Crypto.Cipher import AES
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_OAEP
-
 
 def encrypt_file(key, in_filename, out_filename=None, chunksize=64*1024):
     """ Encrypts a file using AES (CBC mode) with the
@@ -45,6 +42,7 @@ def encrypt_file(key, in_filename, out_filename=None, chunksize=64*1024):
         out_filename = os.path.basename(in_filename) + '.enc'
 
     iv = os.urandom(16)
+    
     encryptor = AES.new(key, AES.MODE_CBC, iv)
     filesize = os.path.getsize(in_filename)
 
@@ -63,32 +61,14 @@ def encrypt_file(key, in_filename, out_filename=None, chunksize=64*1024):
                 outfile.write(encryptor.encrypt(chunk))
 
 
-def encrypt_string(text_to_encrypt, public_key_file):
-    """ Encrypt the supplied string using our public key.
 
-        Arguments:
-            text_to_encrypt     The plain text to encrypt
-            public_key_file     The public key to be used for encryption
-
-        Return:
-            encrypted_text      The encrypted text using the public key
-    """
-
-    with open(public_key_file, 'r') as pub_file:
-        pub_key = RSA.importKey(pub_file.read())
-
-    cipher = PKCS1_OAEP.new(pub_key)
-    encrypted_text = cipher.encrypt(text_to_encrypt)
-    return encrypted_text
-
-
-def run(source, destination, public_key="./key.public"):
-    """ Encrypts the source folder and outputs to the destination folder.
+def run(source, destination, AES_KEY="./AES_KEY"):
+    """ Encrypts the source file and outputs to the destination folder.
 
         Arguments:
             source          The folder to be encrypted
             destination     The folder where the encrypted files will end up
-            public_key      The public key to be used for the encryption
+            AES_KEY         The private key to be used for the encryption
     """
     # # Make sure that the source and destination folders finish with separator
     # if source[-1] != os.sep:
@@ -96,30 +76,25 @@ def run(source, destination, public_key="./key.public"):
     # if destination[-1] != os.sep:
     #     destination += os.sep
 
-    # Check to see if there is actually a public key file
-    if not os.path.isfile(public_key):
-        print("Public key not found: " + public_key)
+
+    # Check to see if there is actually an AES secret file
+    if not os.path.isfile(AES_KEY):
+        print("Secret Key not found: " + AES_KEY)
         sys.exit(1)
-
-    # Generate a random secret that will encrypt the files as AES-256
-    aes_secret = os.urandom(32)
-
-    # Encrypt and save our AES secret using the public key for the holder of
-    # the private key to be able to decrypt the files.
-    secret_path = destination + "secret"
-    with open(secret_path, "wb") as key_file:
-        key_file.write(encrypt_string(aes_secret, public_key))
-
-    ######## Encrypt the desired file
+    
+    # Get the decrypted AES key
+    with open(AES_KEY, "rb") as aes_secret_file:
+        aes_secret = aes_secret_file.read()
 
     #dirnames
     file_path = source
     filename = os.path.basename(file_path)    
 
-    # Amelioration: Encrypt the file name
+    # todo: Encrypt the file name
     encrypted_filename = str("encrypted_"+filename)
 
-    
+    # get the encryption key
+
     # Encrypt the clear text file and give it an obscured name
     print("Encrypting: " + filename)
     encrypt_file(aes_secret, source, destination + encrypted_filename)
@@ -129,22 +104,26 @@ def run(source, destination, public_key="./key.public"):
 
 def main():
     parser_description = "Encrypt a file"
+    
     parser = argparse.ArgumentParser(description=parser_description)
     parser.add_argument("--source",
                         help="Path to the directory with the files to encrypt",
                         required=False,
-                        default="plain_data/data_example_1"),
-    destination_message = "Path to the directory where the encrypted files \
-    will be exported. If it is the same as the source folder, then the \
-    existing unencrypted files will be removed."
-    parser.add_argument("--destination", help=destination_message,
+                        default="plain_data/data_example_1")
+
+    parser.add_argument("--destination",
                         required=False,
-                        default="./encrypted_data/"),
-    parser.add_argument("--public-key",
-                        help="Path to the public key", default="./key.public")
+                        help="Path to the directory where the encrypted files will be exported.",
+                        default="./encrypted_data/")
+
+    parser.add_argument("--key", 
+                    required=False,
+                    help="The AES Key to be used to encrypt data with.",
+                    default="./AES_KEY")
+
     args = parser.parse_args()
 
-    run(args.source, args.destination, args.public_key)
+    run(args.source, args.destination, args.key)
 
 
 if __name__ == "__main__":
