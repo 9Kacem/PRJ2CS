@@ -90,11 +90,11 @@ def run(source, destination, public_key="./key.public"):
             destination     The folder where the encrypted files will end up
             public_key      The public key to be used for the encryption
     """
-    # Make sure that the source and destination folders finish with separator
-    if source[-1] != os.sep:
-        source += os.sep
-    if destination[-1] != os.sep:
-        destination += os.sep
+    # # Make sure that the source and destination folders finish with separator
+    # if source[-1] != os.sep:
+    #     source += os.sep
+    # if destination[-1] != os.sep:
+    #     destination += os.sep
 
     # Check to see if there is actually a public key file
     if not os.path.isfile(public_key):
@@ -110,47 +110,21 @@ def run(source, destination, public_key="./key.public"):
     with open(secret_path, "wb") as key_file:
         key_file.write(encrypt_string(aes_secret, public_key))
 
-    # Recursively encrypt all files and filenames in source folder
-    filenames_map = dict()  # Will contain the real - obscured paths combos
-    for dirpath, dirnames, filenames in os.walk(source):
-        for name in filenames:
-            filename = os.path.join(dirpath, name)
-            # In case source is the same as destination, the encrypted secret
-            # will be one of the detected files and should not be re-encrypted
-            if filename == secret_path:
-                continue
-            # Save the real filepath
-            real_filepath = filename.replace(source, "")
-            # Generate a salted file path
-            salted_path = (str(os.urandom(16)) + real_filepath).encode("UTF-8")
-            # Create a unique obscured filepath by hashing the salted filpath
-            unique_name = hashlib.sha512(salted_path).hexdigest()
-            # Save it to the filenames map along with the original filepath
-            filenames_map[unique_name] = real_filepath
-            # Encrypt the clear text file and give it an obscured name
-            print("Encrypting: " + filename)
-            encrypt_file(aes_secret, filename, destination + unique_name)
-            # If we are encrypting in the same folder as the clear text files
-            # then remove the original unencrypted files
-            if source == destination:
-                if os.path.exists(filename):
-                    os.remove(filename)
+    ######## Encrypt the desired file
 
-    # If the source folder is the same as the destination, we should have some
-    # leftover empty subdirectories. Let's remove those too.
-    if source == destination:
-        for content in os.listdir(source):
-            content_path = os.path.join(source, content)
-            if os.path.isdir(content_path):
-                shutil.rmtree(content_path)
+    #dirnames
+    file_path = source
+    filename = os.path.basename(file_path)    
 
-    # Save and encrypt the mapping between real and obscured filepaths
-    json_map_name = "filenames_map"
-    with tempfile.NamedTemporaryFile(mode="r+t") as tmp_json:
-        tmp_json.write(json.dumps(filenames_map))
-        tmp_json.seek(0)  # Set the position to the beginning so we can read
-        # Encrypt the cleartext json file
-        encrypt_file(aes_secret, tmp_json.name, destination + json_map_name)
+    # Amelioration: Encrypt the file name
+    encrypted_filename = str("encrypted_"+filename)
+
+    
+    # Encrypt the clear text file and give it an obscured name
+    print("Encrypting: " + filename)
+    encrypt_file(aes_secret, source, destination + encrypted_filename)
+    print("Encryption completed")
+
 
 
 def main():
@@ -158,12 +132,14 @@ def main():
     parser = argparse.ArgumentParser(description=parser_description)
     parser.add_argument("--source",
                         help="Path to the directory with the files to encrypt",
-                        required=True)
+                        required=False,
+                        default="plain_data/data_example_1"),
     destination_message = "Path to the directory where the encrypted files \
     will be exported. If it is the same as the source folder, then the \
     existing unencrypted files will be removed."
     parser.add_argument("--destination", help=destination_message,
-                        required=True)
+                        required=False,
+                        default="./encrypted_data/"),
     parser.add_argument("--public-key",
                         help="Path to the public key", default="./key.public")
     args = parser.parse_args()
